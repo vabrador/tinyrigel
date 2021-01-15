@@ -1,0 +1,8 @@
+{
+  "rust-analyzer.diagnostics.disabled": [
+    "macro-error"
+  ],
+  "rust-analyzer.cargo.features": [
+    "rust_analyzer"
+  ]
+}
