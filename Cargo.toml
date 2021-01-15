@@ -12,8 +12,9 @@ crate-type = ["cdylib"]
 
 # Internal lib strategy
 [dependencies]
-bindings-winrt = { path = "bindings-winrt" }
-winrt = { git = "https://github.com/microsoft/winrt-rs" }
+bindings-windows = { path = "bindings-windows" }
+windows = { git = "https://github.com/microsoft/windows-rs" }
+image = "0.23.12"
 
 [features]
 rust_analyzer = []

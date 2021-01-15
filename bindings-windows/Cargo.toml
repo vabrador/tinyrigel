@@ -1,0 +1,25 @@
+[package]
+name = "bindings-windows"
+version = "0.1.0"
+authors = ["Nicholas Benson <nickjbenson@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# winrt: https://github.com/microsoft/winrt-rs
+# setup from: https://kennykerr.ca/2020/06/09/improving-the-ide-for-rust-winrt/
+
+[dependencies]
+windows = { git = "https://github.com/microsoft/windows-rs" }
+ 
+[build-dependencies]
+windows = { git = "https://github.com/microsoft/windows-rs" }
+
+# [features]
+# # rust_analyzer feature for conditionally compiling the verbose, expanded version of the bindings for auto-completion while editing.
+# rust_analyzer = []
+
+# TODO: DELETEME?
+# [package.metadata.winrt.dependencies]
+# # "Microsoft.Windows.SDK.Contracts" = "10.0.19041.1"
+# "Microsoft.Windows.SDK.Contracts" = "10.0.18362.0"

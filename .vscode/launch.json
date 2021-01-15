@@ -1,0 +1,60 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug example 'grab_frame'",
+      "cargo": {
+        "args": [
+          "build",
+          "--example=grab_frame",
+          "--package=tinyrigel"
+        ],
+        "filter": {
+          "name": "grab_frame",
+          "kind": "example"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit tests in example 'grab_frame'",
+      "cargo": {
+        "args": [
+          "test",
+          "--no-run",
+          "--example=grab_frame",
+          "--package=tinyrigel"
+        ],
+        "filter": {
+          "name": "grab_frame",
+          "kind": "example"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug unit test can_retrieve_rigel_frame",
+      "cargo": {
+        "args": [
+          "test",
+          "can_retrieve_rigel_frame",
+          "--",
+          "--nocapture"
+        ]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
