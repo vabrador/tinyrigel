@@ -1,4 +1,3 @@
-
 fn main() {
   windows::build!(
     windows::devices::enumeration::*
@@ -7,15 +6,3 @@ fn main() {
     windows::storage::streams::*
   );
 }
-
-// // Setup example from: 
-// windows::build!(
-//   dependencies
-//       os
-//   types
-//       windows::system::diagnostics::*
-// );
-
-// fn main() {
-//   build();
-// }
