@@ -1,6 +1,6 @@
 # tinyrigel #
 
-It's a tiny Rust library that interfaces with WinRT using winrt-rs to get Rigel images on Windows.
+It's a tiny Rust library that interfaces with WinRT using windows-rs to get Rigel images on Windows.
 
 TODO: Make a working Mac and Linux backend too.
 
