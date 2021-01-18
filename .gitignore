@@ -1,2 +1,7 @@
 /target
 Cargo.lock
+
+# Mac OS X temporary files.
+.DS_Store
+.AppleDouble
+.LSOverride
