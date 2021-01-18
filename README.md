@@ -12,7 +12,14 @@ cargo test -- --nocapture
 
 ## Useful references ##
 
-https://kennykerr.ca/2020/06/09/improving-the-ide-for-rust-winrt/
+### Windows backend ###
 
+https://kennykerr.ca/2020/06/09/improving-the-ide-for-rust-winrt/
 https://github.com/microsoft/windows-rs
+
+### macOS (and iOS?) backend ###
+
+https://github.com/SSheldon/rust-objc/issues/12
+https://github.com/ndarilek/tts-rs/blob/master/src/backends/av_foundation.rs
+https://github.com/SSheldon/rust-objc
 
