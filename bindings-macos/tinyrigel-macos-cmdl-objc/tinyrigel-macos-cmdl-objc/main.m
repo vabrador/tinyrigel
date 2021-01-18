@@ -18,6 +18,10 @@
 didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
        fromConnection:(AVCaptureConnection *)connection;
 
+- (void)captureOutput:(AVCaptureOutput *)output
+didDropSampleBuffer:(CMSampleBufferRef)sampleBuffer
+     fromConnection:(AVCaptureConnection *)connection;
+
 @end
 
 int main(int argc, const char * argv[]) {
@@ -98,14 +102,59 @@ int main(int argc, const char * argv[]) {
     }
     [captureSession addInput:rigelInput];
     
+//    __auto_type preset = [captureSession sessionPreset];
+    
     AVCaptureVideoDataOutput *captureOutput = [[AVCaptureVideoDataOutput alloc] init];
     __auto_type const captureDispatchQueue = dispatch_queue_create("captureDispatchQueue", NULL);
     [captureOutput setAlwaysDiscardsLateVideoFrames: YES];
     CustomVideoCallbackClass *customVideoCallbackHandler = [[CustomVideoCallbackClass alloc] init];
     [captureOutput setSampleBufferDelegate:customVideoCallbackHandler queue:captureDispatchQueue];
     
+    __auto_type const videoSettings = captureOutput.videoSettings;
+    NSLog(@"Video settings: %@", videoSettings);
+    __auto_type const availCodecTypes = captureOutput.availableVideoCodecTypes;
+    NSLog(@"availCodecTypes: %@", availCodecTypes);
+    __auto_type const availPixelFormatTypes = captureOutput.availableVideoCVPixelFormatTypes;
+    NSLog(@"availPixelFormatTypes: %@", availPixelFormatTypes);
+    __auto_type const mostEfficientPixelFormatType = captureOutput.availableVideoCVPixelFormatTypes[0];
+    NSLog(@"mostEfficientPixelFormatType: %@", mostEfficientPixelFormatType);
+    NSLog(@"kCVPixelFormatType_422YpCbCr8: %u", kCVPixelFormatType_422YpCbCr8);
+    NSLog(@"kCVPixelFormatType_422YpCbCr8_yuvs: %u", kCVPixelFormatType_422YpCbCr8_yuvs);
+    
+    [captureOutput setVideoSettings:[NSDictionary dictionaryWithObject: [NSNumber numberWithInt:kCVPixelFormatType_422YpCbCr8] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+    NSLog(@"Set captureOutput videoSettings pixel format.");
+    
+    if ([captureSession canAddOutput:captureOutput]) {
+        [captureSession addOutput:captureOutput];
+    } else {
+        NSLog(@"Failed to add output to captureSession...");
+    }
+    NSLog(@"Added output to captureSession.");
+    
+    // Start...
+    NSLog(@"Calling captureSession startRunning.");
+    [captureSession startRunning];
+    
+    NSLog(@"Capture session isRunning? %hhd", [captureSession isRunning]);
+    
+    // TODO: Only the first frame callback is containing nonzero bytes. What's going on?
+    // Could possibly be:
+    //   - Misconfiguration of the Rigel -- say, the 640x480 "bad" config?
+    //   - Bad code in the frame callback -- some memory nonsense?
+    
+    int million = 1000000;
+    for (int i = 0; i < 500 * million; i++) {}
+    // Spin...
+//    for (int i = 0; i < 10; i++) {
+//        NSLog(@"Spinning... %d", i);
+//    }
+    
+    // Stop...
+    [captureSession stopRunning];
+    
     // Clean up.
     [captureSession removeInput:rigelInput];
+    [captureSession removeOutput:captureOutput];
     
     NSLog(@"Finished enumerating devices.");
 }
@@ -116,12 +165,14 @@ int main(int argc, const char * argv[]) {
 - (void)captureOutput:(AVCaptureOutput *)output
 didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
        fromConnection:(AVCaptureConnection *)connection {
+    NSLog(@"HI FROM CAM THREAD");
+    
     CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
     if (!imageBuffer) {
         return;
     }
     
-    CVPixelBufferLockBaseAddress(imageBuffer,0);
+    CVPixelBufferLockBaseAddress(imageBuffer, 0);
     
     size_t bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer);
     //size_t width = CVPixelBufferGetWidth(imageBuffer);
@@ -131,89 +182,28 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
     
     CVPixelBufferUnlockBaseAddress(imageBuffer, 0);
     
+    const size_t row = bytesPerRow;
+    const size_t halfRow = bytesPerRow * 0.5;
     UInt8 b0, b1, b2, b3, b4, b5, b6, b7;
-    [data getBytes:&b0 range:NSMakeRange(0, sizeof(UInt8))];
-    [data getBytes:&b1 range:NSMakeRange(1, sizeof(UInt8))];
-    [data getBytes:&b2 range:NSMakeRange(2, sizeof(UInt8))];
-    [data getBytes:&b3 range:NSMakeRange(3, sizeof(UInt8))];
-    [data getBytes:&b4 range:NSMakeRange(4, sizeof(UInt8))];
-    [data getBytes:&b5 range:NSMakeRange(5, sizeof(UInt8))];
-    [data getBytes:&b6 range:NSMakeRange(6, sizeof(UInt8))];
-    [data getBytes:&b7 range:NSMakeRange(7, sizeof(UInt8))];
+    [data getBytes:&b0 range:NSMakeRange(00 * row + halfRow, sizeof(UInt8))];
+    [data getBytes:&b1 range:NSMakeRange(10 * row + halfRow, sizeof(UInt8))];
+    [data getBytes:&b2 range:NSMakeRange(20 * row + halfRow, sizeof(UInt8))];
+    [data getBytes:&b3 range:NSMakeRange(30 * row + halfRow, sizeof(UInt8))];
+    [data getBytes:&b4 range:NSMakeRange(40 * row + halfRow, sizeof(UInt8))];
+    [data getBytes:&b5 range:NSMakeRange(50 * row + halfRow, sizeof(UInt8))];
+    [data getBytes:&b6 range:NSMakeRange(60 * row + halfRow, sizeof(UInt8))];
+    [data getBytes:&b7 range:NSMakeRange(70 * row + halfRow, sizeof(UInt8))];
     NSLog(@"First 8 bytes of the image: %d %d %d %d %d %d %d %d",
         b0, b1, b2, b3, b4, b5, b6, b7
     );
     
-//    NSLog(@"%d", );
+    NSLog(@"End of cam callback");
+}
+
+- (void)captureOutput:(AVCaptureOutput *)output
+didDropSampleBuffer:(CMSampleBufferRef)sampleBuffer
+       fromConnection:(AVCaptureConnection *)connection {
+    NSLog(@"Dropped frame");
 }
 
 @end
-
-//
-//foo
-////
-//////
-//////  main.swift
-//////  tinyrigel-macos-cmdl
-//////
-//////  Created by Nicholas Benson on 1/17/21.
-//////  Copyright © 2021 Nick Benson. All rights reserved.
-//////
-////
-////import Foundation
-////import AVFoundation
-////
-////// The Ultraleap SIR 170 (or "Rigel") reports a model ID containing "VendorID_10550" and "ProductID_4610".
-////// USB Vendor ID 10550 corresponds to "LEAP Motion" (or Leap Motion, now Ultraleap).
-////// To find the Rigel, we look at enumerated devices and find the first device whose modelID contains both "VendorID_10550" and "ProductID_4610". We could theoretically also check the device's localizedName, which reports as "Rigel," but to keep the methodology straight-forward, we'll just stick with scanning modelIDs.
-////
-////func printRigelDetails(rigel: AVCaptureDevice) {
-////    print(rigel.localizedName)
-////    print("\t- has media type of Video? " + rigel.hasMediaType(AVMediaType.video).description)
-////    print("\t- is video MediaType: \(rigel.hasMediaType(AVMediaType.video))")
-////    print("\t- manufacturer: \(rigel.manufacturer)")
-////    print("\t- model ID: \(rigel.modelID)")
-////    print("\t- formats: \(rigel.formats)")
-////    print("\t- description: \(rigel.description)")
-////    print("\t- debugDescription: \(rigel.debugDescription)")
-////}
-////
-////func tryCaptureFrame(rigel: AVCaptureDevice) {rigel
-////    var format_384x384_90fps: AVCaptureDevice.Format? = nil;
-////    for format in rigel.formats {
-////        print(format.formatDescription.presentationDimensions())
-////    }
-////
-//////    rigel.activeFormat
-////
-////    let captureSession = AVCaptureSession();
-////    captureSession.beginConfiguration();
-////
-////    guard
-////        let deviceInput = try? AVCaptureDeviceInput(device: rigel),
-////        captureSession.canAddInput(deviceInput)
-////        else { return }
-////    captureSession.addInput(deviceInput)
-////
-////    let videoOutput = AVCaptureVideoDataOutput()
-////    guard captureSession.canAddOutput(videoOutput) else { return }
-////
-////
-//////    var input = AVCaptureDeviceInput.init(device: rigel);
-////
-//////    input.
-////}
-////
-////var rigel: AVCaptureDevice? = nil;
-////for device in AVCaptureDevice.devices() {
-////    let modelID = device.modelID;
-////    if modelID.contains("VendorID_10550") && modelID.contains("ProductID_4610") {
-////        rigel = device;
-////        break;
-////    }
-////}
-////
-////if (rigel != nil) {
-////    printRigelDetails(rigel: rigel!);
-////    tryCaptureFrame(rigel: rigel!);
-////}

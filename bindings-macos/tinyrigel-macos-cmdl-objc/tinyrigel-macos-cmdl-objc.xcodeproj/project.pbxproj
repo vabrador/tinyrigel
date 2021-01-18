@@ -8,23 +8,27 @@
 
 /* Begin PBXBuildFile section */
 		1D17B77425B53AB400529E53 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D17B77325B53AB400529E53 /* main.m */; };
+		1D4A459925B56BA9009D9D7B /* Info.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = 1D4A459425B569E4009D9D7B /* Info.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		1D17B76E25B53AB400529E53 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = /usr/share/man/man1/;
-			dstSubfolderSpec = 0;
+			buildActionMask = 12;
+			dstPath = "";
+			dstSubfolderSpec = 16;
 			files = (
+				1D4A459925B56BA9009D9D7B /* Info.plist in CopyFiles */,
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		1D17B77025B53AB400529E53 /* tinyrigel-macos-cmdl-objc */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "tinyrigel-macos-cmdl-objc"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D17B77325B53AB400529E53 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		1D4A459325B569C2009D9D7B /* tinyrigel-macos-cmdl-objc.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "tinyrigel-macos-cmdl-objc.entitlements"; sourceTree = "<group>"; };
+		1D4A459425B569E4009D9D7B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,7 +61,9 @@
 		1D17B77225B53AB400529E53 /* tinyrigel-macos-cmdl-objc */ = {
 			isa = PBXGroup;
 			children = (
+				1D4A459325B569C2009D9D7B /* tinyrigel-macos-cmdl-objc.entitlements */,
 				1D17B77325B53AB400529E53 /* main.m */,
+				1D4A459425B569E4009D9D7B /* Info.plist */,
 			);
 			path = "tinyrigel-macos-cmdl-objc";
 			sourceTree = "<group>";
@@ -238,6 +244,7 @@
 		1D17B77825B53AB400529E53 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "tinyrigel-macos-cmdl-objc/tinyrigel-macos-cmdl-objc.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3B9W4F9SP9;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -248,6 +255,7 @@
 		1D17B77925B53AB400529E53 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = "tinyrigel-macos-cmdl-objc/tinyrigel-macos-cmdl-objc.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 3B9W4F9SP9;
 				ENABLE_HARDENED_RUNTIME = YES;
