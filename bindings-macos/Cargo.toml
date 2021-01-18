@@ -1,0 +1,8 @@
+[package]
+name = "bindings-macos"
+version = "0.1.0"
+authors = ["Nicholas Benson <nickjbenson@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+objc = "0.2.7"

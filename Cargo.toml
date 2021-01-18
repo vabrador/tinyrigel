@@ -4,24 +4,25 @@ version = "0.1.0"
 authors = ["Nicholas Benson <nickjbenson@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-# Compile as a dynamic library consumable by other applications.
+# Compile as a rust library, C-style dynamic library, and static library.
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["lib", "cdylib", "staticlib"]
 
-# Internal lib strategy
+# Dependencies for all platforms.
 [dependencies]
-bindings-windows = { path = "bindings-windows" }
-windows = { git = "https://github.com/microsoft/windows-rs" }
 image = "0.23.12"
 
-[features]
-rust_analyzer = []
+# Platform Backend Dependencies
+# ---
 
-# # Direct import strategy
-# [dependencies]
-# # winrt = { git = "https://github.com/microsoft/winrt-rs" }
+# Windows backend.
+[target.'cfg(target_os = "windows")'.dependencies]
+bindings-windows = { path = "bindings-windows" }
+windows = { git = "https://github.com/microsoft/windows-rs" }
 
-# [build-dependencies]
-# winrt = { git = "https://github.com/microsoft/winrt-rs" }
+# MacOS and iOS backends.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+bindings-macos = { path = "bindings-macos" }
+libc = "0.2"
+objc = "0.2"
+cocoa-foundation = "0.1.0"

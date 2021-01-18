@@ -1,39 +1,26 @@
 //
-//  main.m
-//  tinyrigel-macos-cmdl-objc
+//  Tests.m
+//  Tests
 //
 
-#import <Foundation/Foundation.h>
-#import <AVFoundation/AVFoundation.h>
+#import <XCTest/XCTest.h>
+#import "tinyrigel_lib_and_tests.h"
 
-@interface Tests : NSObject {}
-
-+ (void)rigelDeviceTest;
+@interface Tests : XCTestCase
 
 @end
-
-@interface CustomVideoCallbackClass : NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
-
-- (void)captureOutput:(AVCaptureOutput *)output
-didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
-       fromConnection:(AVCaptureConnection *)connection;
-
-- (void)captureOutput:(AVCaptureOutput *)output
-didDropSampleBuffer:(CMSampleBufferRef)sampleBuffer
-     fromConnection:(AVCaptureConnection *)connection;
-
-@end
-
-int main(int argc, const char * argv[]) {
-    @autoreleasepool {
-        [Tests rigelDeviceTest];
-    }
-    return 0;
-}
 
 @implementation Tests
 
-+ (void) rigelDeviceTest {
+- (void)setUp {
+    // Put setup code here. This method is called before the invocation of each test method in the class.
+}
+
+- (void)tearDown {
+    // Put teardown code here. This method is called after the invocation of each test method in the class.
+}
+
+- (void)testRigelFrame {
     NSLog(@"Begin device enumeration...");
     
     // The Ultraleap SIR 170 (or "Rigel") reports a model ID containing "VendorID_10550" and "ProductID_4610".
@@ -41,10 +28,12 @@ int main(int argc, const char * argv[]) {
     // USB Vendor ID 10550 corresponds to "LEAP Motion" (or Leap Motion, now Ultraleap).
     //
     // To find the Rigel, we look at enumerated devices and find the first device whose modelID contains both "VendorID_10550" and "ProductID_4610". We could theoretically also check the device's localizedName, which reports as "Rigel," but to keep the methodology straight-forward, we'll just stick with scanning modelIDs.
-    __auto_type const devices = AVCaptureDevice.devices;
-    AVCaptureDevice *rigel = nil;
-    for (AVCaptureDevice *device in devices) {
-        NSString *modelID = device.modelID;
+    NSArray<AVCaptureDevice *> * const devices = [AVCaptureDevice devices];
+    AVCaptureDevice * rigel = nil;
+    for (int i = 0; i < [devices count]; i++) {
+        AVCaptureDevice * device = [devices objectAtIndex:i];
+        
+        NSString * modelID = [device modelID];
         if ([modelID rangeOfString:@"VendorID_10550"].location == NSNotFound) {
             continue;
         }
@@ -118,8 +107,8 @@ int main(int argc, const char * argv[]) {
     AVCaptureVideoDataOutput *captureOutput = [[AVCaptureVideoDataOutput alloc] init];
     __auto_type const captureDispatchQueue = dispatch_queue_create("captureDispatchQueue", NULL);
     [captureOutput setAlwaysDiscardsLateVideoFrames: YES];
-    CustomVideoCallbackClass *customVideoCallbackHandler = [[CustomVideoCallbackClass alloc] init];
-    [captureOutput setSampleBufferDelegate:customVideoCallbackHandler queue:captureDispatchQueue];
+    TinyRigelAVCapture *tinyRigelAVCap = [[TinyRigelAVCapture alloc] init];
+    [captureOutput setSampleBufferDelegate:tinyRigelAVCap queue:captureDispatchQueue];
     
     __auto_type const videoSettings = captureOutput.videoSettings;
     NSLog(@"Video settings: %@", videoSettings);
@@ -166,49 +155,15 @@ int main(int argc, const char * argv[]) {
     [captureSession removeOutput:captureOutput];
     
     NSLog(@"Finished enumerating devices.");
-}
-@end
-
-@implementation CustomVideoCallbackClass
-
-- (void)captureOutput:(AVCaptureOutput *)output
-didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
-       fromConnection:(AVCaptureConnection *)connection {
-    CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-    if (!imageBuffer) {
-        return;
-    }
     
-    CVPixelBufferLockBaseAddress(imageBuffer, 0);
-    
-    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer);
-    //size_t width = CVPixelBufferGetWidth(imageBuffer);
-    size_t height = CVPixelBufferGetHeight(imageBuffer);
-    void *src_buff = CVPixelBufferGetBaseAddress(imageBuffer);
-    NSData *data = [NSData dataWithBytes:src_buff length:bytesPerRow * height];
-    
-    CVPixelBufferUnlockBaseAddress(imageBuffer, 0);
-    
-    const size_t row = bytesPerRow;
-    const size_t halfRow = bytesPerRow * 0.5;
-    UInt8 b0, b1, b2, b3, b4, b5, b6, b7;
-    [data getBytes:&b0 range:NSMakeRange(00 * row + halfRow, sizeof(UInt8))];
-    [data getBytes:&b1 range:NSMakeRange(10 * row + halfRow, sizeof(UInt8))];
-    [data getBytes:&b2 range:NSMakeRange(20 * row + halfRow, sizeof(UInt8))];
-    [data getBytes:&b3 range:NSMakeRange(30 * row + halfRow, sizeof(UInt8))];
-    [data getBytes:&b4 range:NSMakeRange(40 * row + halfRow, sizeof(UInt8))];
-    [data getBytes:&b5 range:NSMakeRange(50 * row + halfRow, sizeof(UInt8))];
-    [data getBytes:&b6 range:NSMakeRange(60 * row + halfRow, sizeof(UInt8))];
-    [data getBytes:&b7 range:NSMakeRange(70 * row + halfRow, sizeof(UInt8))];
-    NSLog(@"[Frame Thread] Some bytes: %d %d %d %d %d %d %d %d",
-        b0, b1, b2, b3, b4, b5, b6, b7
-    );
+    XCTAssert(YES);
 }
 
-- (void)captureOutput:(AVCaptureOutput *)output
-didDropSampleBuffer:(CMSampleBufferRef)sampleBuffer
-       fromConnection:(AVCaptureConnection *)connection {
-    NSLog(@"Dropped frame");
+- (void)testPerformanceExample {
+    // This is an example of a performance test case.
+    [self measureBlock:^{
+        // Put the code you want to measure the time of here.
+    }];
 }
 
 @end
