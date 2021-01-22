@@ -180,22 +180,21 @@ fn can_retrieve_rigel_frame() -> windows::Result<()> {
         let bitmap = latest_frame.video_media_frame()?.software_bitmap()?;
         println!("Got bitmap! Pixel format: {}, {}x{}", bitmap.bitmap_pixel_format()?.0, bitmap.pixel_width()?, bitmap.pixel_height()?);
 
-        // Leap Motion devices pretend to be giving frames in YUY2 format (which uses 4 bytes to encode 2 pixels at a time), but it's really 8-bit grayscale, with each row containing the left-image followed by the right-image row.
+        // Leap Motion devices pretend to be giving frames in YUY2 format (which uses 4 bytes to encode 2 pixels at a time), but it's really 8-bit grayscale, with each data row containing the left-image row followed by the right-image row.
 
         const FRAME_YUY2_BYTES_PER_PIXEL: usize = 2;
         const FRAME_PX_COUNT: usize = 384 * 384; // 147,456
-        const FRAME_NUM_BYTES_YUY2: usize = FRAME_PX_COUNT * FRAME_YUY2_BYTES_PER_PIXEL;
-        let frame_buffer = Buffer::create(FRAME_NUM_BYTES_YUY2 as u32)?;
+        const FRAME_NUM_BYTES: usize = FRAME_PX_COUNT * FRAME_YUY2_BYTES_PER_PIXEL;
+        let frame_buffer = Buffer::create(FRAME_NUM_BYTES as u32)?;
         // Even though we're calling "clone()", we're actually cloning the WinRT *handle* for the buffer, so "frame_buffer" will still wind up containing copied bitmap data.
         bitmap.copy_to_buffer(frame_buffer.clone())?;
         let frame_data_reader = DataReader::from_buffer(frame_buffer)?;
 
         // The frame is too large for the stack, so we initialize a Vec, which stores its data on the heap. Note we can't do Box::new([0u8; NUM_BYTES]) because the argument would first be constructed on the stack and then moved to the heap.
-        let mut heap_data_vec = Vec::with_capacity(FRAME_NUM_BYTES_YUY2);
-        heap_data_vec.resize(FRAME_NUM_BYTES_YUY2, 0u8);
+        let mut heap_data_vec = Vec::with_capacity(FRAME_NUM_BYTES);
+        heap_data_vec.resize(FRAME_NUM_BYTES, 0u8);
         // Once we have the vec, we can get a mutable reference to the array (or 'slice,' which is a pointer + length struct), and use it normally.
         let heap_data_slice = heap_data_vec.as_mut_slice();
-        // let mut heap_data_arr = Box::new([0u8; FRAME_NUM_BYTES_YUY2]);
         let mut_heap_arr_ref = heap_data_slice.as_mut();
 
         println!("FRAME: Available data length: {}", frame_data_reader.unconsumed_buffer_length()?);
@@ -203,7 +202,7 @@ fn can_retrieve_rigel_frame() -> windows::Result<()> {
         frame_data_reader.read_bytes(mut_heap_arr_ref)
             .expect("Failed to read frame data");
 
-        // We have an image, now get permission from the main thread to write to disk.
+        // We have the image, now get permission from the main thread to write to disk.
         // This blocks for the receiving end of the channel -- the main thread.
         let ok_to_write = match tx_write_img.send(0) {
             Ok(_) => {
@@ -219,11 +218,11 @@ fn can_retrieve_rigel_frame() -> windows::Result<()> {
 
         // Save the image as a PNG as a test.
         use image::GenericImageView;
-        let mut image = image::DynamicImage::new_luma8(384 * 2, 384);
-        let image_gs = image.as_mut_luma8().unwrap();
-        image_gs.copy_from_slice(mut_heap_arr_ref);
-        println!("Copied image from frame data, {}x{}", image.width(), image.height());
-        image.save("test.png").unwrap();
+        let mut img = image::DynamicImage::new_luma8(384 * 2, 384);
+        let img_luma8 = img.as_mut_luma8().unwrap();
+        img_luma8.copy_from_slice(mut_heap_arr_ref);
+        println!("Copied image from frame data, {}x{}", img.width(), img.height());
+        img.save("test.png").unwrap();
         println!("Invoked write to test.png");
         
         // Transmit because we're done. This blocks and waits for the receiver.

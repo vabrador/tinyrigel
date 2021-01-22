@@ -26,3 +26,4 @@ bindings-macos = { path = "bindings-macos" }
 libc = "0.2"
 objc = "0.2"
 cocoa-foundation = "0.1.0"
+core-foundation = "0.9.1"
