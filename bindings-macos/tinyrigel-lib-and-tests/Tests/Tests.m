@@ -130,7 +130,20 @@
     
     // Set the capture output configuration to '2vuy', AKA YUY2, which is the format that the Rigel claims to output. (Spoiler: It actually does not output YUY2 data.)
     
-    [captureOutput setVideoSettings:[NSDictionary dictionaryWithObject: [NSNumber numberWithInt:kCVPixelFormatType_422YpCbCr8] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+    // kCVPixelFormatType_422YpCbCr8 == 846624121
+    id formatTypeNum = [NSNumber numberWithInt: kCVPixelFormatType_422YpCbCr8];
+    // kCVPixelFormatType_422YpCbCr8_yuvs == 2037741171
+    // id formatTypeNum = [NSNumber numberWithInt: kCVPixelFormatType_422YpCbCr8_yuvs];
+    // kCVPixelBufferPixelFormatTypeKey => @"PixelFormatType" (NSString)
+    id formatTypeKey = (id)kCVPixelBufferPixelFormatTypeKey;
+    NSLog(@"kCVPixelBufferPixelFormatTypeKey: %@", kCVPixelBufferPixelFormatTypeKey);
+    id setVideoSettingsDict = [NSDictionary dictionaryWithObject: formatTypeNum forKey: @"PixelFormatType"];
+    [captureOutput setVideoSettings: setVideoSettingsDict];
+    
+    id finalRigelFormat = [rigel activeFormat];
+    NSLog(@"finalRigelFormat: %@", finalRigelFormat);
+    
+//    [captureOutput setVideoSettings:[NSDictionary dictionaryWithObject: [NSNumber numberWithInt:kCVPixelFormatType_422YpCbCr8] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
     NSLog(@"Set captureOutput videoSettings pixel format to %u, aka '2vuy', via kCVPixelFormatType_422YpCbCr8.", kCVPixelFormatType_422YpCbCr8);
     
     // Attempt to add the configured output node to the capture session.

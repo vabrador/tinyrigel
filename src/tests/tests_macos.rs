@@ -6,11 +6,12 @@
 //
 // Check out the objc crate for more info.
 
-use std::{ffi::{CStr}, ptr};
+use std::{ffi::{CStr}, ptr, sync::{Mutex, mpsc::{Receiver, Sender, channel}}, time::Duration};
 use cocoa_foundation::{base::id, base::{BOOL, NO, YES, nil}, foundation::{NSInteger, NSString}};
 use core_foundation::{base::TCFType, error::{CFError, CFErrorRef}};
-use objc::{class, declare::ClassDecl, msg_send, runtime::{Object, Sel}, sel, sel_impl};
+use objc::{class, declare::ClassDecl, msg_send, rc::StrongPtr, runtime::{Object, Sel}, sel, sel_impl};
 use ptr::null;
+use lazy_static::lazy_static;
 // use objc::runtime::Object; <-- id, provided by cocoa_foundation, is short-hand for *mut objc::runtime::Object.
 
 // These tests are only valid on macOS and iOS.
@@ -87,27 +88,7 @@ extern "C" {
     fn dispatch_release(object: id);
 }
 
-// TODO: REMOVEME? If 'id' works for the CMSampleBufferRef instead
-// // Linked opaque struct types.
-// extern "C" {
-//     type CMSampleBufferRef;
-// }
-// unsafe impl Encode for CMSampleBufferRef {
-//     fn encode() -> objc::Encoding {
-//         todo!()
-//     }
-// }
-// // opaqueCMSampleBuffer*
-// // CM_BRIDGED_TYPE(id) implies to me that it's OK to replace the type definition with id, so I'm going to try that.
-
-// Dispatch
-//
-// // Needed for dispatch_queue_create.
-// #[link(name = "Dispatch", kind = "framework")]
-// extern "C" {
-// }
-
-// CoreMedia-related structs.
+// C-interop struct definitions.
 #[repr(C)]
 pub struct CMVideoDimensions {
     pub width: i32,
@@ -119,6 +100,13 @@ pub struct CMVideoDimensions {
 
 // TODO: Add "backends/macos-xcode-ref"
 
+lazy_static! {
+    /// Receiver for the frame thread to receive an OK-to-write signal from the main thread to write the retrieved image to disk.
+    static ref FRAME_OK_TO_WRITE_RX: Mutex<Option<Receiver<i32>>> = Mutex::new(None);
+    /// Sender for the frame thread to send a done-writing signal to the main thread so the main thread can safely stop the frame thread and exit.
+    static ref FRAME_DONE_WRITING_TX: Mutex<Option<Sender<i32>>> = Mutex::new(None);
+}
+
 #[test]
 fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
     println!("=== can_retrieve_rigel_frame ===");
@@ -126,11 +114,13 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
     // Attempt to enumerate devices and retrieve a connected Rigel.
     let rigel_device: Option<id> = unsafe {
         // NSArray<AVCaptureDevice *> *
+        // TODO: Change "devices" call to instead use AVCaptureDeviceDiscoverySession.
+        // See: https://developer.apple.com/documentation/avfoundation/avcapturedevicediscoverysession?language=objc
         let devices: id = msg_send![class!(AVCaptureDevice), devices];
         let devices_count: NSInteger = msg_send![devices, count];
         println!("AVCaptureDevice.devices devices_count is {}", devices_count);
 
-        let mut rigel: id = nil;
+        let mut rigel: Option<id> = None;
         for device_idx in 0..devices_count {
             let device: id = msg_send![devices, objectAtIndex: device_idx];
             let model_id: id = msg_send![device, modelID];
@@ -139,16 +129,12 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
 
             if device_model_id_is_rigel(&model_id_str) {
                 println!("Found Rigel. Model id was: {}", model_id_str);
-                rigel = device;
+                rigel = Some(device);
                 break;
             }
         }
 
-        if rigel != nil {
-            Some(rigel)
-        } else {
-            None
-        }
+        rigel
     };
     if rigel_device.is_none() {
         return Err("Failed to find connected Rigel. Is your Rigel connected?");
@@ -244,19 +230,20 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
     let rigel_input = rigel_input.unwrap();
 
     // Initialize the capture session and add the input node to it.
-    let capture_session: id = unsafe {
+    let capture_session: StrongPtr = unsafe {
         let allocated_capture_session: id = msg_send![class!(AVCaptureSession), alloc];
         if allocated_capture_session == nil { return Err("Failed to allocate a new AVCaptureSession."); }
+        let capture_session: id = msg_send![allocated_capture_session, init];
 
-        msg_send![allocated_capture_session, init]
+        StrongPtr::new(capture_session)
     };
     println!("Trying AVCaptureSession canAddInput");
-    let can_add_rigel_input: BOOL = unsafe { msg_send![capture_session, canAddInput: rigel_input] };
+    let can_add_rigel_input: BOOL = unsafe { msg_send![*capture_session, canAddInput: rigel_input] };
     if can_add_rigel_input == NO {
         return Err("Unable to add the rigel_input node to the new capture_session.");
     }
     println!("Trying AVCaptureSession addInput");
-    unsafe { let _: () = msg_send![capture_session, addInput: rigel_input]; }
+    unsafe { let _: () = msg_send![*capture_session, addInput: rigel_input]; }
     println!("Added the rigel_input node to the new capture_session.");
 
     // Initialize the frame callback output node with "YUY2" format. (The data we'll get is only pretending to be YUY2, but that's OK!)
@@ -265,16 +252,17 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
     //
     // Currently using as a reference:
     // https://github.com/ndarilek/tts-rs/blob/d3e05b5a7a642eb3212528ecc8cdedd406673213/src/backends/av_foundation.rs
-    let capture_output: id = unsafe {
+    let capture_output: StrongPtr = unsafe {
         let allocated_capture_output: id = msg_send![class!(AVCaptureVideoDataOutput), alloc];
         if allocated_capture_output == nil { return Err("Failed to allocate a new AVCaptureVideoDataOutput."); }
+        let capture_output: id = msg_send![allocated_capture_output, init];
 
-        msg_send![allocated_capture_output, init]
+        StrongPtr::new(capture_output)
     };
     // We have to provide a dispatch queue to the output capture node.
     let dispatch_queue = unsafe { dispatch_queue_create(null(), nil /* DISPATCH_QUEUE_SERIAL -- to guarantee order. Xcode reveals this is actually defined to be NULL, so let's hope that never changes! */) };
     // We also specify that we just want to discard late frames.
-    unsafe { let _: () = msg_send![capture_output, setAlwaysDiscardsLateVideoFrames: YES]; }
+    unsafe { let _: () = msg_send![*capture_output, setAlwaysDiscardsLateVideoFrames: YES]; }
 
     // Declare and implement the frame callback delegate class.
     let mut frame_delegate_decl = ClassDecl::new("TinyRigelAVCapture", class!(NSObject)).unwrap();
@@ -291,10 +279,33 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
         sample_buffer: *const Object, /* immutable CMSampleBufferRef */
         _connection: id /* AVCaptureConnection * */
     ) {
-        // CVImageBufferRef imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        // if (!imageBuffer) {
-        //     return;
-        // }
+        println!("[Frame] Got frame callback.");
+
+        // Wait for the ok-to-write signal.
+        // https://doc.rust-lang.org/nightly/std/sync/mpsc/index.html
+        //
+        // We're waiting BEFORE locking the pixel buffer for copying, so that if the image frame thread shuts down, we don't leave the pixel buffer's address locked.
+        {
+            let ok_to_write_rx_lock = FRAME_OK_TO_WRITE_RX.try_lock();
+            if ok_to_write_rx_lock.is_err() {
+                println!("[Frame] Failed to acquire ok_to_write. Aborting this frame callback. Error was: {}", ok_to_write_rx_lock.err().unwrap());
+                return;
+            }
+            let ok_to_write_rx = ok_to_write_rx_lock.unwrap();
+            if ok_to_write_rx.is_none() {
+                println!("[Frame] OK-to-write receiver was None (did the main thread neglect to set it before launching the capture session?). Aborting this frame callback.");
+                return;
+            }
+            println!("[Frame] Waiting for ok-to-write...");
+            let res = ok_to_write_rx.as_ref().unwrap().recv_timeout(Duration::from_millis(500));
+            if res.is_err() {
+                println!("[Frame] Receive timed out or the channel hung up. Aborting frame callback.");
+                return;
+            }
+            println!("[Frame] Received OK-to-write.");
+        };
+
+        // Safety: "The caller does not own the returned buffer, and must retain it explicitly if the caller needs to maintain a reference to it." (We do not need to maintain a reference to it.)
         let img_buf: id = unsafe { CMSampleBufferGetImageBuffer(sample_buffer) };
         if img_buf == nil {
             return;
@@ -309,11 +320,6 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
             }
         }
         
-        // size_t bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer);
-        // //size_t width = CVPixelBufferGetWidth(imageBuffer);
-        // size_t height = CVPixelBufferGetHeight(imageBuffer);
-        // void *src_buff = CVPixelBufferGetBaseAddress(imageBuffer);
-        // NSData *data = [NSData dataWithBytes:src_buff length:bytesPerRow * height];
         let (bytes_per_row, _width, height) = unsafe {
             let bytes_per_row = CVPixelBufferGetBytesPerRow(img_buf);
             let width: libc::size_t = CVPixelBufferGetWidth(img_buf);
@@ -326,16 +332,16 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
             let src_buf = CVPixelBufferGetBaseAddress(img_buf) as *const u8;
             let src_buf_as_slice = std::slice::from_raw_parts(src_buf, bytes_per_row * height);
 
-            println!("src_buf_as_slice is {} bytes in length.", src_buf_as_slice.len());
+            println!("[Frame] src_buf_as_slice is {} bytes in length.", src_buf_as_slice.len());
 
             const FRAME_YUY2_BYTES_PER_PIXEL: usize = 2;
             const FRAME_PX_COUNT: usize = 384 * 384; // 147,456
             const FRAME_NUM_BYTES: usize = FRAME_PX_COUNT * FRAME_YUY2_BYTES_PER_PIXEL;
 
-            println!("We expect there to be {} bytes per frame.", FRAME_NUM_BYTES);
+            println!("[Frame] We expect there to be {} bytes per frame.", FRAME_NUM_BYTES);
 
             if src_buf_as_slice.len() != FRAME_NUM_BYTES {
-                println!("Unexpected length mismatch, src_buf {} bytes != FRAME_NUM_BYTES of {} bytes.", src_buf_as_slice.len(), FRAME_NUM_BYTES);
+                println!("[Frame] Unexpected length mismatch, src_buf {} bytes != FRAME_NUM_BYTES of {} bytes.", src_buf_as_slice.len(), FRAME_NUM_BYTES);
                 return;
             }
             
@@ -352,42 +358,43 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
         unsafe {
             let cv_return = CVPixelBufferUnlockBaseAddress(img_buf, 1u64);
             if cv_return != 0 {
-                println!("Non-zero return from CVPixelBufferLockBaseAddress: {}", cv_return);
+                println!("[Frame] Non-zero return from CVPixelBufferUnlockBaseAddress: {}", cv_return);
                 return;
             }
         }
         
-        // From here, we have everything we need accessible from safe code.
-
-        // Here we would want to sync with the main thread to get an OK-to-write...
-        // TODO...
+        // Shouldn't need any unsafe or interop code from here on.
 
         // Save the image as a PNG as a test.
         use image::GenericImageView;
         let mut img = image::DynamicImage::new_luma8(384 * 2, 384);
         let img_luma8 = img.as_mut_luma8().unwrap();
         img_luma8.copy_from_slice(copied_frame_data.as_slice());
-        println!("Copied image from frame data, {}x{}", img.width(), img.height());
+        println!("[Frame] Copied image from frame data, {}x{}", img.width(), img.height());
         img.save("test.bmp").unwrap();
-        println!("Invoked write to test.bmp");
+        println!("[Frame] Invoked write to test image");
 
-        // Here we would want to transmit a "done" signal...
-        // TODO...
+        // Transmit a "done" signal.
+        {
+            let done_writing_tx_lock = FRAME_DONE_WRITING_TX.try_lock();
+            if done_writing_tx_lock.is_err() {
+                println!("[Frame] Failed to acquire done_writing_tx_lock. Aborting this frame callback. Error was: {}", done_writing_tx_lock.err().unwrap());
+                return;
+            }
+            let done_writing_tx = done_writing_tx_lock.unwrap();
+            if done_writing_tx.is_none() {
+                println!("[Frame] Done-writing transmitter was None (did the main thread neglect to set it before launching the capture session?). Aborting this frame callback.");
+                return;
+            }
+            let res = done_writing_tx.as_ref().unwrap().send(0i32);
+            if res.is_err() {
+                println!("Err sending done signal: {}", res.err().unwrap());
+            }
+            println!("[Frame] Frame sent done-writing signal.");
+        };
+        // done_writing_tx.
 
-        // const size_t row = bytesPerRow;
-        // const size_t halfRow = bytesPerRow * 0.5;
-        // UInt8 b0, b1, b2, b3, b4, b5, b6, b7;
-        // [data getBytes:&b0 range:NSMakeRange(00 * row + halfRow, sizeof(UInt8))];
-        // [data getBytes:&b1 range:NSMakeRange(10 * row + halfRow, sizeof(UInt8))];
-        // [data getBytes:&b2 range:NSMakeRange(20 * row + halfRow, sizeof(UInt8))];
-        // [data getBytes:&b3 range:NSMakeRange(30 * row + halfRow, sizeof(UInt8))];
-        // [data getBytes:&b4 range:NSMakeRange(40 * row + halfRow, sizeof(UInt8))];
-        // [data getBytes:&b5 range:NSMakeRange(50 * row + halfRow, sizeof(UInt8))];
-        // [data getBytes:&b6 range:NSMakeRange(60 * row + halfRow, sizeof(UInt8))];
-        // [data getBytes:&b7 range:NSMakeRange(70 * row + halfRow, sizeof(UInt8))];
-        // NSLog(@"[Frame Thread] Some bytes: %d %d %d %d %d %d %d %d",
-        //     b0, b1, b2, b3, b4, b5, b6, b7
-        // );
+        println!("[Frame] Frame callback done.");
     }
 
     unsafe {
@@ -401,98 +408,106 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
 
     let frame_delegate_cls = frame_delegate_decl.register();
     // TinyRigelAVCapture *
-    let frame_delegate_obj: id = unsafe { msg_send![frame_delegate_cls, new] };
+    let frame_delegate_obj: StrongPtr = unsafe {
+        let instance: id = msg_send![frame_delegate_cls, new];
+        StrongPtr::new(instance)
+    };
     unsafe {
-        let _: () = msg_send![capture_output, setSampleBufferDelegate: frame_delegate_obj queue: dispatch_queue];
+        let _: () = msg_send![*capture_output, setSampleBufferDelegate: *frame_delegate_obj queue: dispatch_queue];
     }
 
-    // We always want to set the capture_output videoSettings pixel format to 846624121, aka '2vuy', retrievable from the declaration kCVPixelFormatType_422YpCbCr8.
-    // ........ we're going to try skipping this step because it would be a major pain.
+    // Skipped for now: Attempting to set the capture_output video_settings to a specific format.
+    // ---
+    // Original Obj-C reference:
     //
-    // [captureOutput setVideoSettings:[NSDictionary dictionaryWithObject: [NSNumber numberWithInt:kCVPixelFormatType_422YpCbCr8] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+    // // kCVPixelFormatType_422YpCbCr8 == 846624121
+    // id formatTypeNum = [NSNumber numberWithInt: kCVPixelFormatType_422YpCbCr8];
+    // // kCVPixelFormatType_422YpCbCr8_yuvs == 2037741171
+    // // id formatTypeNum = [NSNumber numberWithInt: kCVPixelFormatType_422YpCbCr8_yuvs];
+    // // kCVPixelBufferPixelFormatTypeKey => @"PixelFormatType" (NSString)
+    // id formatTypeKey = (id)kCVPixelBufferPixelFormatTypeKey;
+    // NSLog(@"kCVPixelBufferPixelFormatTypeKey: %@", kCVPixelBufferPixelFormatTypeKey);
+    // id setVideoSettingsDict = [NSDictionary dictionaryWithObject: formatTypeNum forKey: @"PixelFormatType"];
+    // [captureOutput setVideoSettings: setVideoSettingsDict];
     // NSLog(@"Set captureOutput videoSettings pixel format to %u, aka '2vuy', via kCVPixelFormatType_422YpCbCr8.", kCVPixelFormatType_422YpCbCr8);
 
     // Add the output node, with the frame callback delegate, to the capture session.
-    let can_add_capture_output: BOOL = unsafe { msg_send![capture_session, canAddOutput: capture_output] };
+    let can_add_capture_output: BOOL = unsafe { msg_send![*capture_session, canAddOutput: *capture_output] };
     if can_add_capture_output == NO {
         return Err("Unable to add capture_output to capture_session.");
     }
-    unsafe { let _: () = msg_send![capture_session, addOutput: capture_output]; }
+    unsafe { let _: () = msg_send![*capture_session, addOutput: *capture_output]; }
     println!("Added output with frame callback delegate to capture_session.");
+
+    // Before starting the capture session, set the global receiver and transmitters for the frame callback thread to access. It would be much more graceful if we could just move the relevant channel accessors into a closure, but because we're instead passing a function handle and it would be difficult to give the Objective-C delegate class access to the Rust sync channels, we're just using lazy_static Mutex-wrapped channel accessors.
+    let (frame_ok_to_write_tx_main, frame_ok_to_write_rx) = channel::<i32>();
+    *FRAME_OK_TO_WRITE_RX.lock().expect("Failed to acquire frame OK-to-write receiver mutex lock.") = Some(frame_ok_to_write_rx);
+    let (frame_done_writing_tx, frame_done_writing_rx_main) = channel::<i32>();
+    *FRAME_DONE_WRITING_TX.lock().expect("Failed to acquire frame done-writing transmitter mutex lock.") = Some(frame_done_writing_tx);
 
     // Start the capture session and unlock the device configuration.
     unsafe {
-        let _: () = msg_send![capture_session, startRunning];
+        let _: () = msg_send![*capture_session, startRunning];
         let _: () = msg_send![rigel_device, unlockForConfiguration];
     }
     println!("Unlocked the Rigel configuration.");
 
     // Confirm whether the capture_session is running.
-    let is_running: BOOL = unsafe { msg_send![capture_session, isRunning] };
+    let is_running: BOOL = unsafe { msg_send![*capture_session, isRunning] };
     if is_running == NO {
         return Err("Capture session failed to be running after invoking startRunning.");
     }
     println!("Capture session is running...");
 
-    // Spin for a bit...
-    let mut i = 0;
-    for _ in 0..2_000_000_000u64 {
-        i += 1;
+    // Wait a bit before transmitting OK-to-write to test if the frame stabilizes if the cameras are left on for a moment.
+    println!("Waiting for a moment.");
+    let mut x = 0u64;
+    for _ in 0..20_000_000u64 {
+        x += 1;
     }
-    println!("{}", i);
-    for _ in 0..100000 {
-      let is_running: BOOL = unsafe { msg_send![capture_session, isRunning] };
-      println!("Capture session is running? {}", is_running);
+    println!("{}", x);
+    
+    // Transmit the "ok to write" signal.
+    let res = frame_ok_to_write_tx_main.send(0);
+    if res.is_err() {
+        println!("Failed to transmit OK-to-write signal to frame thread: {}", res.err().unwrap());
+        return Err("Failed to transmit OK-to-write signal to frame thread.");
     }
+    println!("Sent OK-to-write signal.");
+
+    // Wait for the "done writing" signal.
+    println!("Waiting for done-writing...");
+    let res = frame_done_writing_rx_main.recv_timeout(Duration::from_millis(4000));
+    if res.is_err() {
+        println!("Error waiting for done-writing from frame thread: {}", res.err().unwrap());
+        return Err("Error waiting for done-writing");
+    }
+    println!("Got done-writing.");
+
+    // Hang up on the frame thread so it aborts immediately in the future.
+    drop(frame_ok_to_write_tx_main);
+    drop(frame_done_writing_rx_main);
 
     // Stop...
-    unsafe { let _: () = msg_send![capture_session, stopRunning]; }
+    unsafe { let _: () = msg_send![*capture_session, stopRunning]; }
     println!("Invoked stopRunning on capture_session.");
-
-    // TODO: Synchronization plan might not be easy, because the callback thread isn't a Rust closure, but a function with a pointer. Probably have to use a lazy_static! mutex, which is kind of non-ideal.
-    //
-    // Maybe there's a lock-free lazy_static! queue of frame buffers I can write to?
-    //
-    // Or maybe there's a better way...
-    //
-    // Original plan:
-    // ---
-    // Wait to sync with the callback thread and give it the OK to copy the frame data, convert to an image format, and write to disk.
-    //
-    // Wait to sync with the the callback thread, to have it report that it finished writing to disk.
-
-    // HUGE TODO HERE:
-    // Referencing: https://github.com/SSheldon/rust-objc/blob/6092caa90ca0622b82ea1ebb820a614db2cee82b/examples/example.rs
-    // for use of "StrongPtr" and "WeakPtr" to get "ARC-like semantics".
-    //
-    // Additionally, see: https://github.com/SSheldon/rust-objc#reference-counting
-    //
-    // So when I am doing new, or alloc/init, for constructing objects, I need to be returning StrongPtrs to them so that when they are dropped, Release can be called.
+    // Frame is now done writing to disk.
 
     // Clean up.
-    unsafe { let _: () = msg_send![capture_session, removeInput: rigel_input]; }
-    unsafe { let _: () = msg_send![capture_session, removeOutput: capture_output]; }
+    unsafe { let _: () = msg_send![*capture_session, removeInput: rigel_input]; }
+    unsafe { let _: () = msg_send![*capture_session, removeOutput: *capture_output]; }
 
-    // No... this doesn't seem like it's stable...
-    // Let's just use StrongPtrs as above :(
-    // // For now.. do we release every object manually?
-    // // Objects:
-    // //  - rigel_device
-    // //  - format_384x384_90fps
-    // //  - rigel_input
-    // //  - capture_session
-    // //  - capture_output
-    // //  - frame_delegate_obj
-    // unsafe {
-    //     let _: () = msg_send![frame_delegate_obj, release];
-    //     let _: () = msg_send![capture_output, release];
-    //     let _: () = msg_send![capture_session, release];
-    //     let _: () = msg_send![rigel_input, release];
-    //     let _: () = msg_send![format_384x384_90fps, release];
-    //     let _: () = msg_send![rigel_device, release];
-    // }
+    // Memory safety:
+    // ---
+    // We use StrongPtrs to wrap allocated objects so that they are released when the StrongPtr wrapper is dropped.
+    // See: https://github.com/SSheldon/rust-objc#reference-counting
+    //
+    // For this reason, we don't manually invoke "release" messages on any of the objects we own.
+    
+    // TODO: Run a memory leak test on this. I don't trust this code at aaaaalllllllll.
 
-    // Without ARC, release the dispatch queue too.
+    // One exception to the above StrongPtr tracking is the dispatch_queue. The docs direct us to invoke the dispatch_release method and pass it the dispatch_queue when we are finished with it.
+    // TODO: Is it possible to just rely on a release message for this too?
     unsafe { dispatch_release(dispatch_queue); }
 
     println!("Done.");
