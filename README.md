@@ -30,7 +30,7 @@ cargo test -- --nocapture
 - https://github.com/SSheldon/rust-objc
 
 - macOS TODOs:
-  - Need to organize the Xcode reference back into a tidy single .exe project
+  - Need to organize the Xcode reference back into a tidy single cmdl project
   - Need to test the macOS integrate for leaks -- extremely messy, raw objc interop happening in the macOS backend currently -- I don't trust it at all!
 
 ### Linux backend ###
