@@ -1,6 +1,7 @@
 // tinyrigel
 
-#![feature(extern_types)]
+// TODO: This was needed for macOS, may not be relevant anymore.
+// #![feature(extern_types)]
 
 /// Vendor ID for Leap Motion. Leap Motion (now Ultraleap) camera devices contain this in their USB device ID string.
 pub const VENDOR_ID__LEAP_MOTION: &'static str = "VID_2936";
