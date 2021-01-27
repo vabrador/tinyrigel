@@ -1,0 +1,12 @@
+[package]
+name = "linux-bindgen"
+version = "0.1.0"
+authors = ["Nick Benson <nickjbenson@gmail.com>"]
+edition = "2018"
+
+# Linux. (Currently only testing with Ubuntu 20.04.1 LTS, 2021-01-24)
+# [target.'cfg(target_os = "linux")'.dependencies]
+# nix = "0.19.1"
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+bindgen = "0.56.0"

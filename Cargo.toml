@@ -1,7 +1,7 @@
 [package]
 name = "tinyrigel"
 version = "0.1.0"
-authors = ["Nicholas Benson <nickjbenson@gmail.com>"]
+authors = ["Nick Benson <nickjbenson@gmail.com>"]
 edition = "2018"
 
 # Compile as a rust library, C-style dynamic library, and static library.
@@ -31,4 +31,5 @@ lazy_static = "1.4.0"
 
 # Linux. (Currently only testing with Ubuntu 20.04.1 LTS, 2021-01-24)
 [target.'cfg(target_os = "linux")'.dependencies]
+linux-bindgen = { path = "backends/linux-bindgen" }
 nix = "0.19.1"

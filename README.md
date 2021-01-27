@@ -38,7 +38,7 @@ cargo test -- --nocapture
 More details to follow. Some scattered notes for now:
 
 - leapuvc's C example is actually a very raw posix + v4l2 + SDL example, so it's a good Linux reference:
-  - https://github.com/leapmotion/rawviewer/blob/ff68600a19b51187c15cb010c36b73d801d082e8/v4l2sdl.c#L53
+  - https://github.com/leapmotion/rawviewer/blob/ff68600a19b51187c15cb010c36b73d801d082e8/v4l2sdl.c
 
 - Building with Ubuntu 20.02
 
