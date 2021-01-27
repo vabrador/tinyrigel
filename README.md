@@ -30,7 +30,7 @@ cargo test -- --nocapture
 - https://github.com/SSheldon/rust-objc
 
 - macOS TODOs:
-  - Need to organize the Xcode reference back into a tidy single .exe project
+  - Need to organize the Xcode reference back into a tidy single cmdl project
   - Need to test the macOS integrate for leaks -- extremely messy, raw objc interop happening in the macOS backend currently -- I don't trust it at all!
 
 ### Linux backend ###
@@ -44,3 +44,11 @@ More details to follow. Some scattered notes for now:
 
 - Attempting to use bindgen with v4l2. This will at least require the bindgen requirements on Linux for any Linux builders:
   - https://rust-lang.github.io/rust-bindgen/requirements.html#debian-based-linuxes
+
+## Licensing
+
+The goal is to release this project into the public domain via Unlicense, however, it's unclear how feasible that is given licenses in the project's dependencies. To be reviewed:
+
+- windows-rs license: ???
+- objc license: MIT (is this effectively infectious?)
+- v4l2 license: ???
