@@ -33,3 +33,4 @@ lazy_static = "1.4.0"
 [target.'cfg(target_os = "linux")'.dependencies]
 linux-bindgen = { path = "backends/linux-bindgen" }
 nix = "0.19.1"
+v4l = "0.12.0"

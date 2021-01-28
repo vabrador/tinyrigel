@@ -1,11 +1,15 @@
 
-use std::{fs::{self, File}, os::linux};
+use std::{fs::{self, File}};
 use std::os::unix::io::{IntoRawFd, RawFd};
 
 use nix::{sys::stat::SFlag};
 
-use linux_bindgen;
+// use linux_bindgen;
 
+use v4l::{Capabilities, context::Node, prelude::*};
+use v4l::video::Capture;
+
+// TODO: Probably no need for this test anymore, DELETEME.
 #[test]
 fn can_enumerate_video_devices() -> Result<(), &'static str> {
   for entry in fs::read_dir("/dev")
@@ -24,7 +28,196 @@ fn can_enumerate_video_devices() -> Result<(), &'static str> {
 }
 
 #[test]
-fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
+fn can_retrieve_rigel_frame() -> Result<(), &str> {
+  
+  // Enumerate connected devices and find the first valid Rigel Device and device node (/dev/videoX entry)
+  let (mut rigel, mut rigel_node) = (None, None);
+  for device_node in v4l::context::enum_devices() {
+    let device = Device::new(device_node.index());
+    if device.is_err() {
+      println!("(Error getting Device for index {}, skipping it. Inner error was: {}", device_node.index(), device.err().unwrap().to_string());
+      continue;
+    }
+    let device = device.unwrap();
+
+    if is_device_rigel(&device_node, &device) {
+      rigel_node = Some(device_node);
+      rigel = Some(device);
+      break;
+    }
+  }
+  if rigel.is_none() {
+    return Err("No Rigel device found in device enumeration. Is your Rigel plugged in?");
+  }
+  let rigel = rigel.unwrap();
+  let rigel_node = rigel_node.unwrap();
+  println!("Found Rigel device at index {}, path {}.", rigel_node.index(), rigel_node.path().to_str().unwrap());
+
+  // Enumerate allowed framesizes and frameintervals? There was a nice way to list allowed framesizes -- possibly through format query
+
+  // Set the Rigel to YUYV, 348x384, 90 FPS.
+  // ---
+  // - Enumerating framesizes for YUYV format reveals all expected framesizes.
+  // - Then, querying frameinterval for YUYV @ 384x384 reveals 90fps.
+  // - UNTESTED: Need to set format YUYV, set framesize 384x384, set interval 1/90, and then observe that the resulting active format/framesize/interval all matches as expected.
+  let yuyv = v4l::FourCC::new(b"YUYV");
+  let req_format = v4l::Format::new(384, 384, yuyv);
+  let cap_format = rigel.set_format(&req_format);
+  if cap_format.is_err() {
+    return Err(format!("Failed to set Rigel capture format to 384x384 @ 90 fps. Inner error was: {}", cap_format.err().unwrap().to_string()).as_str());
+  }
+  let cap_format = cap_format.unwrap();
+  if cap_format.width != 384 || cap_format.height != 384 {
+    return Err(format!("Failed to set Rigel capture format to 384x384. The resulting capture format was {}x{}.", cap_format.width, cap_format.height).as_str());
+  }
+  let frameinterval_90fps = rigel.enum_frameintervals(yuyv, 384, 384);
+  // CHECK IF IT'S 90 FPS ^^^^^
+
+  // Prepare callback? Map memory? Initiate capture thread?
+
+  Ok(())
+}
+
+fn is_device_rigel(device_node: &v4l::context::Node, device: &Device) -> bool {
+  let name = device_node.name();
+  if name.is_none() { return false; }
+
+  let name = name.unwrap();
+  if !name.contains("Leap Motion") || !name.contains("Rigel") { return false; }
+  
+  let caps = device.query_caps();
+  if caps.is_err() { return false; }
+
+  let caps = caps.unwrap();
+  if !caps.capabilities.contains(
+    v4l::capability::Flags::VIDEO_CAPTURE |
+    v4l::capability::Flags::STREAMING
+  ) {
+    return false;
+  }
+
+  true
+}
+
+// TODO: Probably standardize this as can_enumerate? (Replacing the one at the top)
+#[test]
+fn can_query_video_devices() -> Result<(), &'static str> {
+  
+  for device_node in v4l::context::enum_devices() {
+    let device_name = device_node.name();
+    if device_name.is_none() {
+      println!("(Unable to get device {} name; skipping.)", device_node.index());
+      continue;
+    }
+    let device_name = device_name.unwrap();
+
+    let device_idx = device_node.index();
+    let device_path = device_node.path().to_str().unwrap();
+    println!("\nDevice {} ({}): {}", device_idx, device_path, device_name);
+
+    let device = Device::new(device_idx);
+    if device.is_err() {
+      println!("Unable to create Device from {} ({}), skipping.", device_idx, device_path);
+      continue;
+    }
+    let device = device.unwrap();
+
+    // Device Capabilities
+    // ---
+
+    let caps = device.query_caps();
+    if caps.is_err() {
+      println!("Unable to get device {} capabilities. Continuing.", device_idx);
+      continue;
+    }
+    let caps = caps.unwrap();
+    println!("\nDevice {} capabilities:\n{}", device_idx, caps.to_string());
+    if !caps.capabilities.contains(v4l::capability::Flags::VIDEO_CAPTURE) {
+      println!("Device {} does not have the VIDEO_CAPTURE capability. Continuing.", device_idx);
+      continue;
+    }
+
+    // Device Controls
+    // ---
+
+    let controls = device.query_controls();
+    if controls.is_err() {
+      println!("Unable to get device {} controls.", device_idx);
+    } else {
+      let controls = controls.unwrap();
+
+      println!("## {} Controls ##", device_name);
+      let mut max_name_len = 0;
+      for control in &controls {
+        if control.name.len() > max_name_len {
+          max_name_len = control.name.len();
+        }
+      }
+      for control in controls {
+        println!(
+          "{:indent$} : [{}, {}]",
+          control.name,
+          control.minimum,
+          control.maximum,
+          indent = max_name_len
+        );
+      }
+    }
+
+    // Formats
+    // ---
+    
+    let formats = device.enum_formats();
+    if formats.is_err() {
+      println!("Unable to enumerate formats for {}.", device_name);
+    } else {
+      let formats = formats.unwrap();
+      for (idx, format) in formats.iter().enumerate() {
+        println!("Available format {} for device {}:", idx, device_name);
+        println!("{}", format.to_string());
+      }
+    }
+
+    // Framesizes
+    // ---
+
+    let framesizes = device.enum_framesizes(v4l::FourCC::new(b"YUYV"));
+    if framesizes.is_err() {
+      println!("Unable to enumerate framesizes for FourCC 'YUYV' @ 384x384.");
+    } else {
+      let framesizes = framesizes.unwrap();
+      for (idx, framesize) in framesizes.iter().enumerate() {
+        println!("(YUYV 384x384) Available framesize {}: {}", idx, framesize.to_string());
+      }
+    }
+
+    let frameintervals = device.enum_frameintervals(v4l::FourCC::new(b"YUYV"), 384, 384);
+    if frameintervals.is_err() {
+      println!("Unable to enumerate frameintervals for FourCC 'YUYV' @ 384x384.");
+    } else {
+      let frameintervals = frameintervals.unwrap();
+      for (idx, frameinterval) in frameintervals.iter().enumerate() {
+        println!("(YUYV 384x384) Available frameinterval {}: {}", idx, frameinterval.to_string());
+      }
+    }
+
+    let params = device.params();
+    if params.is_err() {
+      println!("Unable to enumerate params for {}.", device_name);
+    } else {
+      let params = params.unwrap();
+      println!("{} params: {}", device_name, params.to_string());
+      // for (idx, param) in .enumerate() {
+      //   println!("Param {}: {}", idx, param.to_string());
+      // }
+    }
+  }
+
+  Ok(())
+}
+
+#[test]
+fn old_bak_retrieve_rigel_frame() -> Result<(), &'static str> {
   for entry in fs::read_dir("/dev")
   .expect("Failed to open /dev directory") {
     if entry.is_err() {
