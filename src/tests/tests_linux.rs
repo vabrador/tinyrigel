@@ -7,6 +7,8 @@ use nix::{sys::stat::SFlag};
 // use linux_bindgen;
 
 use v4l::{Capabilities, context::Node, prelude::*};
+use v4l::io::mmap::Stream;
+use v4l::io::traits::CaptureStream;
 use v4l::video::Capture;
 
 // TODO: Probably no need for this test anymore, DELETEME.
@@ -28,7 +30,7 @@ fn can_enumerate_video_devices() -> Result<(), &'static str> {
 }
 
 #[test]
-fn can_retrieve_rigel_frame() -> Result<(), &str> {
+fn can_retrieve_rigel_frame() -> Result<(), String> {
   
   // Enumerate connected devices and find the first valid Rigel Device and device node (/dev/videoX entry)
   let (mut rigel, mut rigel_node) = (None, None);
@@ -47,9 +49,9 @@ fn can_retrieve_rigel_frame() -> Result<(), &str> {
     }
   }
   if rigel.is_none() {
-    return Err("No Rigel device found in device enumeration. Is your Rigel plugged in?");
+    return Err("No Rigel device found in device enumeration. Is your Rigel plugged in?".to_string());
   }
-  let rigel = rigel.unwrap();
+  let mut rigel = rigel.unwrap();
   let rigel_node = rigel_node.unwrap();
   println!("Found Rigel device at index {}, path {}.", rigel_node.index(), rigel_node.path().to_str().unwrap());
 
@@ -64,17 +66,54 @@ fn can_retrieve_rigel_frame() -> Result<(), &str> {
   let req_format = v4l::Format::new(384, 384, yuyv);
   let cap_format = rigel.set_format(&req_format);
   if cap_format.is_err() {
-    return Err(format!("Failed to set Rigel capture format to 384x384 @ 90 fps. Inner error was: {}", cap_format.err().unwrap().to_string()).as_str());
+    return Err(format!("Failed to set Rigel capture format to 384x384 @ 90 fps. Inner error was: {}", cap_format.err().unwrap().to_string()));
   }
   let cap_format = cap_format.unwrap();
   if cap_format.width != 384 || cap_format.height != 384 {
-    return Err(format!("Failed to set Rigel capture format to 384x384. The resulting capture format was {}x{}.", cap_format.width, cap_format.height).as_str());
+    return Err(format!("Failed to set Rigel capture format to 384x384. The resulting capture format was {}x{}.", cap_format.width, cap_format.height));
   }
-  let frameinterval_90fps = rigel.enum_frameintervals(yuyv, 384, 384);
-  // CHECK IF IT'S 90 FPS ^^^^^
+  let frameintervals = rigel.enum_frameintervals(yuyv, 384, 384);
+  if frameintervals.is_err() {
+    return Err(format!("Failed to enumerate frameintervals for YUYV @ 384x384."));
+  }
+  let frameintervals = frameintervals.unwrap();
+  for frameinterval in &frameintervals {
+    println!("{}", frameinterval.to_string());
+  }
+  let frameinterval_90fps = frameintervals.iter().find(|fi| -> bool {
+      match fi.interval {
+        v4l::frameinterval::FrameIntervalEnum::Discrete(frac) => {
+          frac.numerator == 1 && frac.denominator == 90
+        }
+        _ => { false }
+      }
+  });
+  if frameinterval_90fps.is_none() {
+    return Err(format!("Failed to find 90fps frameinterval for YUYV @ 384x384."));
+  }
+  
+  let mut stream = Stream::with_buffers(&mut rigel, v4l::buffer::Type::VideoCapture, 4)
+    .expect("Failed to create buffer stream.");
 
-  // Prepare callback? Map memory? Initiate capture thread?
+  let mut i = 0;
+  loop {
+    let (buf, meta) = stream.next().unwrap();
+    println!("Buffer size: {}; seq: {}; timestamp: {}", buf.len(), meta.sequence, meta.timestamp);
 
+    // Save the image as a PNG as a test.
+    use image::GenericImageView;
+    let mut img = image::DynamicImage::new_luma8(384 * 2, 384);
+    let img_luma8 = img.as_mut_luma8().unwrap();
+    img_luma8.copy_from_slice(buf);
+    println!("[Frame] Copied image from frame data, {}x{}", img.width(), img.height());
+    img.save("test.png").unwrap();
+    println!("[Frame] Invoked write to test image");
+
+    i += 1;
+    if i == 10 { break; }
+  }
+
+  println!("Done.");
   Ok(())
 }
 

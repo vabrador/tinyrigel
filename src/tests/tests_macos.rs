@@ -371,7 +371,7 @@ fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
         let img_luma8 = img.as_mut_luma8().unwrap();
         img_luma8.copy_from_slice(copied_frame_data.as_slice());
         println!("[Frame] Copied image from frame data, {}x{}", img.width(), img.height());
-        img.save("test.bmp").unwrap();
+        img.save("test.png").unwrap();
         println!("[Frame] Invoked write to test image");
 
         // Transmit a "done" signal.
