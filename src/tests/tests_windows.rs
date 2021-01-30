@@ -2,17 +2,25 @@
 
 use std::sync::mpsc::sync_channel;
 
-use bindings_windows::windows::foundation::*;
-use bindings_windows::windows::devices::enumeration::*;
-use bindings_windows::windows::media::*;
-use bindings_windows::windows::media::capture::*;
-use bindings_windows::windows::media::capture::frames::*;
-use bindings_windows::windows::media::media_properties::*;
-use bindings_windows::windows::storage::streams::*;
+use windows_bindings::windows::foundation::*;
+use windows_bindings::windows::devices::enumeration::*;
+use windows_bindings::windows::media::*;
+use windows_bindings::windows::media::capture::*;
+use windows_bindings::windows::media::capture::frames::*;
+use windows_bindings::windows::media::media_properties::*;
+use windows_bindings::windows::storage::streams::*;
 
 use windows::Interface;
 
-use crate::{PRODUCT_ID__RIGEL, VENDOR_ID__LEAP_MOTION};
+// Note on Vendor_ID and Product_ID as retrieved by device.Id on Windows
+// ---
+// As far sa I can tell, this ID is only ever accessible through Windows' specific negotiation pathway with the Rigel. macOS shows an entirely different set of data through uvc drivers, and Linux's uvc querying also reveals no such string -- not even the same data that macOS returns.
+// Identifying Leap Motion devices may well be OS-specific, which is very counter-intuitive...
+
+/// Vendor ID for Leap Motion. Leap Motion (now Ultraleap) camera devices contain this in their USB device ID string.
+pub const VENDOR_ID__LEAP_MOTION: &'static str = "VID_2936";
+/// Product ID for the Rigel, AKA the SIR 170. Rigel / SIR 170 devices contain this in their USB device ID string.
+pub const PRODUCT_ID__RIGEL     : &'static str = "PID_1202";
 
 #[test]
 fn can_enumerate_video_devices() -> Result<(), &'static str> {

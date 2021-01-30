@@ -17,12 +17,12 @@ image = "0.23.12"
 
 # Windows backend.
 [target.'cfg(target_os = "windows")'.dependencies]
-bindings-windows = { path = "bindings-windows" }
+windows-bindings = { path = "backends/windows-bindings" }
 windows = { git = "https://github.com/microsoft/windows-rs" }
 
 # MacOS and iOS backends.
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-bindings-macos = { path = "bindings-macos" }
+# bindings-macos = { path = "bindings-macos" }
 libc = "0.2"
 objc = "0.2"
 cocoa-foundation = "0.1.0"
