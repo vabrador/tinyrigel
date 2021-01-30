@@ -14,7 +14,7 @@ use windows::Interface;
 
 // Note on Vendor_ID and Product_ID as retrieved by device.Id on Windows
 // ---
-// As far sa I can tell, this ID is only ever accessible through Windows' specific negotiation pathway with the Rigel. macOS shows an entirely different set of data through uvc drivers, and Linux's uvc querying also reveals no such string -- not even the same data that macOS returns.
+// As far as I can tell, this ID is only ever accessible through Windows' specific negotiation pathway with the Rigel. macOS shows an entirely different set of data through uvc drivers, and Linux's uvc querying also reveals no such string -- not even the same data that macOS returns.
 // Identifying Leap Motion devices may well be OS-specific, which is very counter-intuitive...
 
 /// Vendor ID for Leap Motion. Leap Motion (now Ultraleap) camera devices contain this in their USB device ID string.
@@ -56,7 +56,7 @@ fn can_enumerate_video_devices() -> Result<(), &'static str> {
 
 #[test]
 fn can_retrieve_rigel_frame() -> windows::Result<()> {
-    println!("\n## can_retrieve_rigel_frame ##");
+    println!("\n## can_retrieve_rigel_frame (Windows) ##");
 
     // We naively spin to wait out asynchronous requests. This sets the timeout in "loops" to wait for them (TODO: this SHOULD be a time duration!)
     let timeout = 20_000_000u64;

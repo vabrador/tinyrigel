@@ -4,8 +4,6 @@ use std::os::unix::io::{IntoRawFd, RawFd};
 
 use nix::{sys::stat::SFlag};
 
-// use linux_bindgen;
-
 use v4l::{Capabilities, context::Node, prelude::*};
 use v4l::io::mmap::Stream;
 use v4l::io::traits::CaptureStream;
@@ -31,6 +29,7 @@ fn can_enumerate_video_devices() -> Result<(), &'static str> {
 
 #[test]
 fn can_retrieve_rigel_frame() -> Result<(), String> {
+  println!("## can_retrieve_rigel_frame (Linux) ##");
   
   // Enumerate connected devices and find the first valid Rigel Device and device node (/dev/videoX entry)
   let (mut rigel, mut rigel_node) = (None, None);
@@ -55,13 +54,8 @@ fn can_retrieve_rigel_frame() -> Result<(), String> {
   let rigel_node = rigel_node.unwrap();
   println!("Found Rigel device at index {}, path {}.", rigel_node.index(), rigel_node.path().to_str().unwrap());
 
-  // Enumerate allowed framesizes and frameintervals? There was a nice way to list allowed framesizes -- possibly through format query
-
   // Set the Rigel to YUYV, 348x384, 90 FPS.
   // ---
-  // - Enumerating framesizes for YUYV format reveals all expected framesizes.
-  // - Then, querying frameinterval for YUYV @ 384x384 reveals 90fps.
-  // - UNTESTED: Need to set format YUYV, set framesize 384x384, set interval 1/90, and then observe that the resulting active format/framesize/interval all matches as expected.
   let yuyv = v4l::FourCC::new(b"YUYV");
   let req_format = v4l::Format::new(384, 384, yuyv);
   let cap_format = rigel.set_format(&req_format);
@@ -91,11 +85,11 @@ fn can_retrieve_rigel_frame() -> Result<(), String> {
   if frameinterval_90fps.is_none() {
     return Err(format!("Failed to find 90fps frameinterval for YUYV @ 384x384."));
   }
+  // Now we know the Rigel is set to the expected YUYV 384x384 @ 90fps format.
   
   let mut stream = Stream::with_buffers(&mut rigel, v4l::buffer::Type::VideoCapture, 4)
     .expect("Failed to create buffer stream.");
 
-  let mut i = 0;
   loop {
     let (buf, meta) = stream.next().unwrap();
     println!("Buffer size: {}; seq: {}; timestamp: {}", buf.len(), meta.sequence, meta.timestamp);
@@ -109,8 +103,7 @@ fn can_retrieve_rigel_frame() -> Result<(), String> {
     img.save("test.png").unwrap();
     println!("[Frame] Invoked write to test image");
 
-    i += 1;
-    if i == 10 { break; }
+    break;
   }
 
   println!("Done.");

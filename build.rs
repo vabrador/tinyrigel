@@ -1,14 +1,18 @@
 
+// OS-dependent build-steps.
+// ===
+    
 // Windows
 // ---
-
-// This space is intentionally left blank.
 //
 // On Windows, we generate bindings using a subproject with its own build step. The subproject then exports Windows API bindings generated via windows-rs.
+#[cfg(target_os = "windows")]
+fn main() { }
 
 // macOS / iOS
 // ---
-
+//
+// On macOS, we need to include Framework dependencies for accessing video devices.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 fn main() {
     // macOS / iOS backend-specific Framework dependencies.
@@ -26,9 +30,7 @@ fn main() {
 
 // Linux
 // ---
-
-// This space is intentionally left blank.
 //
 // On Linux, we generate bindings using a subproject with its own build step.
-
+#[cfg(target_os = "linux")]
 fn main() { }

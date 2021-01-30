@@ -109,7 +109,7 @@ lazy_static! {
 
 #[test]
 fn can_retrieve_rigel_frame() -> Result<(), &'static str> {
-    println!("=== can_retrieve_rigel_frame ===");
+    println!("## can_retrieve_rigel_frame (macOS) ##");
 
     // Attempt to enumerate devices and retrieve a connected Rigel.
     let rigel_device: Option<id> = unsafe {
