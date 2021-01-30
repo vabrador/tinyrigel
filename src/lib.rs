@@ -1,4 +1,7 @@
-// tinyrigel
+// lib.rs - tinyrigel
+
+// Misc
+// ---
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -14,6 +17,9 @@ impl Error {
   pub fn to_string(self: &Self) -> String { self.details.clone() }
 }
 
+// Rigel
+// ---
+
 pub struct Rigel<Cb>
 where Cb: Fn(&[u8]) -> ()
 {
@@ -23,7 +29,8 @@ where Cb: Fn(&[u8]) -> ()
 pub fn get_rigel<Cb>() -> Result<Rigel<Cb>>
 where Cb: Fn(&[u8]) -> ()
 {
-  Ok(Rigel { callback_fn: None })
+  Err(Error::new("get_rigel not yet implemented.".to_string()))
+  // Ok(Rigel { callback_fn: None })
 }
 
 impl<Cb> Rigel<Cb>
@@ -41,6 +48,9 @@ where Cb: Fn(&[u8]) -> ()
     Err(Error::new("close() not yet implemented.".to_string()))
   }
 }
+
+// Tests
+// ---
 
 #[cfg(test)]
 mod tests;
