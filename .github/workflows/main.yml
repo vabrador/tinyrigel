@@ -10,8 +10,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v2
-        with:
-          lfs: true
         
       - name: Initialize Rust Toolchain
         uses: actions-rs/toolchain@v1
