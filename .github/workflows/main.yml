@@ -1,0 +1,38 @@
+name: tinyrigel - Continuous Integration
+
+on:
+  push
+
+jobs:
+  build-win:
+    name: Build Windows Library
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        
+      - name: Initialize Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo Packages
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build tinyrigel
+        run: cargo build --release --all-features --all-targets
+
+      - name: Upload Windows Library
+        uses: actions/upload-artifact@v2
+        with:
+          name: tinyrigel-windows
+          path: |
+            target/release/tinyrigel.*
+            target/release/libtinyrigel.*
+            target/release/examples/
