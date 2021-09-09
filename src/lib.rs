@@ -1,13 +1,8 @@
-// lib.rs - tinyrigel
 
-mod core;
-pub use crate::core::*;
+#![feature(const_try)]
 
-mod rigel;
-pub use rigel::*;
+pub mod calib;
+pub mod usb_info;
+pub mod usb;
 
-// Tests
-// ---
-
-#[cfg(test)]
 mod tests;

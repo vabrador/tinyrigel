@@ -11,6 +11,12 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # Dependencies for all platforms.
 [dependencies]
 image = "0.23.12"
+# rusb = "0.8.1" # Sadly, no. rusb is libusb which fails for Rigels on Windows. Can't fix.
+ascii = "1.0.0"
+packed_struct = "0.6"
+static_assertions = "1.1.0"
+guid = "0.1.0"
+widestring = "0.4.3"
 
 # Platform Backend Dependencies
 # ---
@@ -19,6 +25,8 @@ image = "0.23.12"
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-bindings = { path = "backends/windows-bindings" }
 windows = { git = "https://github.com/microsoft/windows-rs" }
+com = { git = "https://github.com/microsoft/com-rs", rev = "0ef0f9f" }
+# windows = "0.19.0"
 
 # MacOS and iOS backends.
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
@@ -32,5 +40,5 @@ lazy_static = "1.4.0"
 # Linux. (Currently only testing with Ubuntu 20.04.1 LTS, 2021-01-24)
 [target.'cfg(target_os = "linux")'.dependencies]
 # linux-bindgen = { path = "backends/linux-bindgen" }
-nix = "0.19.1"
+nix = "0.20.0"
 v4l = "0.12.0"

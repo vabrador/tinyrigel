@@ -1,1 +1,3 @@
-::windows::include_bindings!();
+#![feature(untagged_unions)]
+
+windows::include_bindings!();

@@ -1,13 +1,12 @@
 [package]
 name = "windows-bindings"
-version = "0.1.0"
-authors = ["Nick Benson <nickjbenson@gmail.com>"]
+version = "0.0.0"
 edition = "2018"
-
-# windows-rs: https://github.com/microsoft/windows-rs
 
 [dependencies]
 windows = { git = "https://github.com/microsoft/windows-rs" }
- 
+# windows = "0.19"
+
 [build-dependencies]
 windows = { git = "https://github.com/microsoft/windows-rs" }
+# windows = "0.19"

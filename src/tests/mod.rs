@@ -1,5 +1,10 @@
 // tests/mod.rs
 
+// Platform-agnostic tests.
+mod tests_usb;
+
+// Platform-specific tests.
+
 #[cfg(target_os = "windows")]
 mod tests_windows;
 
